@@ -168,7 +168,10 @@ impl<'gen, 'typeck, 'flow, 'gcx, 'tcx> TypeLivenessGenerator<'gen, 'typeck, 'flo
         );
 
         cx.tcx().for_each_free_region(&value, |live_region| {
-            cx.constraints.liveness_set.push((live_region, location));
+            if let Some(borrowck_context) = cx.borrowck_context {
+                let region_vid = borrowck_context.universal_regions.to_region_vid(live_region);
+                borrowck_context.constraints.liveness_constraints.add_element(region_vid, location);
+            }
         });
     }
 

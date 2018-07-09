@@ -12,7 +12,7 @@ use borrow_check::borrow_set::BorrowSet;
 use borrow_check::location::LocationTable;
 use borrow_check::nll::ToRegionVid;
 use borrow_check::nll::facts::AllFacts;
-use borrow_check::nll::region_infer::RegionInferenceContext;
+use borrow_check::nll::region_infer::{RegionElement, RegionInferenceContext};
 use rustc::infer::InferCtxt;
 use rustc::mir::visit::TyContext;
 use rustc::mir::visit::Visitor;
@@ -30,7 +30,6 @@ pub(super) fn generate_constraints<'cx, 'gcx, 'tcx>(
     location_table: &LocationTable,
     mir: &Mir<'tcx>,
     borrow_set: &BorrowSet<'tcx>,
-    liveness_set_from_typeck: &[(ty::Region<'tcx>, Location)],
 ) {
     let mut cg = ConstraintGeneration {
         borrow_set,
@@ -40,7 +39,7 @@ pub(super) fn generate_constraints<'cx, 'gcx, 'tcx>(
         all_facts,
     };
 
-    cg.add_region_liveness_constraints_from_type_check(liveness_set_from_typeck);
+    cg.add_region_liveness_constraints_from_type_check();
 
     for (bb, data) in mir.basic_blocks().iter_enumerated() {
         cg.visit_basic_block_data(bb, data);
@@ -191,15 +190,7 @@ impl<'cg, 'cx, 'gcx, 'tcx> Visitor<'tcx> for ConstraintGeneration<'cg, 'cx, 'gcx
 impl<'cx, 'cg, 'gcx, 'tcx> ConstraintGeneration<'cx, 'cg, 'gcx, 'tcx> {
     /// The MIR type checker generates region liveness constraints
     /// that we also have to respect.
-    fn add_region_liveness_constraints_from_type_check(
-        &mut self,
-        liveness_set: &[(ty::Region<'tcx>, Location)],
-    ) {
-        debug!(
-            "add_region_liveness_constraints_from_type_check(liveness_set={} items)",
-            liveness_set.len(),
-        );
-
+    fn add_region_liveness_constraints_from_type_check(&mut self) {
         let ConstraintGeneration {
             regioncx,
             location_table,
@@ -207,21 +198,29 @@ impl<'cx, 'cg, 'gcx, 'tcx> ConstraintGeneration<'cx, 'cg, 'gcx, 'tcx> {
             ..
         } = self;
 
-        for (region, location) in liveness_set {
-            debug!("generate: {:#?} is live at {:#?}", region, location);
-            let region_vid = regioncx.to_region_vid(region);
-            regioncx.add_live_element(region_vid, *location);
-        }
+        debug!(
+            "add_region_liveness_constraints_from_type_check(liveness_constraints={} items)",
+            regioncx.number_of_liveness_constraints(),
+        );
 
         if let Some(all_facts) = all_facts {
-            all_facts
-                .region_live_at
-                .extend(liveness_set.into_iter().flat_map(|(region, location)| {
-                    let r = regioncx.to_region_vid(region);
-                    let p1 = location_table.start_index(*location);
-                    let p2 = location_table.mid_index(*location);
-                    iter::once((r, p1)).chain(iter::once((r, p2)))
-                }));
+            for (r, _) in regioncx.liveness_constraints() {
+                all_facts
+                    .region_live_at
+                    .extend(regioncx.elements_contained_in(r)
+                            .filter_map(|region_element| {
+                                if let RegionElement::Location(location) = region_element {
+                                    Some(location)
+                                } else {
+                                    None
+                                }
+                            })
+                            .flat_map(|location| {
+                                let p1 = location_table.start_index(location);
+                                let p2 = location_table.mid_index(location);
+                                iter::once((r, p1)).chain(iter::once((r, p2)))
+                            }));
+            }
         }
     }
 

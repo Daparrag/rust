@@ -94,20 +94,6 @@ impl<'tcx> RegionInferenceContext<'tcx> {
             }
             return;
         }
-
-        for constraint in self.constraint_graph.outgoing_edges(current_region) {
-            assert_eq!(self.constraints[constraint].sup, current_region);
-            stack.push(constraint);
-            self.find_constraint_paths_between_regions_helper(
-                from_region,
-                self.constraints[constraint].sub,
-                target_test,
-                visited,
-                stack,
-                results,
-            );
-            stack.pop();
-        }
     }
 
     /// This function will return true if a constraint is interesting and false if a constraint
