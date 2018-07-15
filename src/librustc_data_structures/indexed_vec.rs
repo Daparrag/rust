@@ -522,6 +522,12 @@ impl<I: Idx, T: Clone> IndexVec<I, T> {
     pub fn resize(&mut self, new_len: usize, value: T) {
         self.raw.resize(new_len, value)
     }
+
+    #[inline]
+    pub fn resize_to_elem(&mut self, elem: I, fill_value: impl FnMut() -> T) {
+        let min_new_len = elem.index() + 1;
+        self.raw.resize_with(min_new_len, fill_value);
+    }
 }
 
 impl<I: Idx, T: Ord> IndexVec<I, T> {

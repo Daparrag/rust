@@ -12,6 +12,7 @@ use super::universal_regions::UniversalRegions;
 use borrow_check::nll::constraints::{
     ConstraintIndex, ConstraintSccIndex, ConstraintSet, OutlivesConstraint,
 };
+use borrow_check::nll::constraints::graph::ConstraintGraph;
 use borrow_check::nll::region_infer::values::ToElementIndex;
 use borrow_check::nll::type_check::Locations;
 use rustc::hir::def_id::DefId;
@@ -26,7 +27,6 @@ use rustc::mir::{
 };
 use rustc::ty::{self, RegionVid, Ty, TyCtxt, TypeFoldable};
 use rustc::util::common;
-use rustc_data_structures::bitvec::SparseBitSet;
 use rustc_data_structures::graph::scc::Sccs;
 use rustc_data_structures::indexed_set::{IdxSet, IdxSetBuf};
 use rustc_data_structures::indexed_vec::IndexVec;
@@ -37,8 +37,8 @@ mod annotation;
 mod dump_mir;
 mod error_reporting;
 mod graphviz;
-mod values;
-crate use self::values::{RegionElement, RegionElementIndex, RegionValueElements, RegionValues};
+pub mod values;
+use self::values::{RegionValueElements, RegionValues};
 
 use super::ToRegionVid;
 
@@ -60,6 +60,11 @@ pub struct RegionInferenceContext<'tcx> {
 
     /// The outlives constraints computed by the type-check.
     constraints: Rc<ConstraintSet>,
+
+    /// The constraint-set, but in graph form, making it easy to traverse
+    /// the constraints adjacent to a particular region. Used to construct
+    /// the SCC (see `constraint_sccs`) and for error reporting.
+    constraint_graph: Rc<ConstraintGraph>,
 
     /// The SCC computed from `constraints` and the constraint graph. Used to compute the values
     /// of each region.
@@ -232,6 +237,7 @@ impl<'tcx> RegionInferenceContext<'tcx> {
             elements: elements.clone(),
             liveness_constraints,
             constraints,
+            constraint_graph,
             constraint_sccs,
             scc_values,
             type_tests,
@@ -299,26 +305,6 @@ impl<'tcx> RegionInferenceContext<'tcx> {
     /// Returns an iterator over all the region indices.
     pub fn regions(&self) -> impl Iterator<Item = RegionVid> {
         self.definitions.indices()
-    }
-
-    /// Iterates through each row and the accompanying bit set.
-    pub fn liveness_constraints<'a>(
-        &'a self
-    ) -> impl Iterator<Item = (RegionVid, &'a SparseBitSet<RegionElementIndex>)> + 'a {
-        self.liveness_constraints.iter_enumerated()
-    }
-
-    /// Number of liveness constaints in region inference context.
-    pub fn number_of_liveness_constraints(&self) -> usize {
-        self.liveness_constraints.len()
-    }
-
-    /// Returns all the elements contained in a given region's value.
-    crate fn elements_contained_in<'a>(
-        &'a self,
-        r: RegionVid,
-    ) -> impl Iterator<Item = RegionElement> + 'a {
-        self.liveness_constraints.elements_contained_in(r)
     }
 
     /// Given a universal region in scope on the MIR, returns the

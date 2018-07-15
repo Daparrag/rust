@@ -12,7 +12,7 @@ use borrow_check::borrow_set::BorrowSet;
 use borrow_check::location::{LocationIndex, LocationTable};
 use borrow_check::nll::facts::AllFactsExt;
 use borrow_check::nll::type_check::MirTypeckRegionConstraints;
-use borrow_check::nll::region_infer::RegionValueElements;
+use borrow_check::nll::region_infer::values::RegionValueElements;
 use dataflow::indexes::BorrowIndex;
 use dataflow::move_paths::MoveData;
 use dataflow::FlowAtLocation;

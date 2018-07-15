@@ -214,11 +214,6 @@ impl<N: Idx> RegionValues<N> {
         self.matrix.contains(r, i)
     }
 
-    /// Number of region values.
-    crate fn len(&self) -> usize {
-        self.matrix.len()
-    }
-
     /// Iterates through each row and the accompanying bit set.
     pub fn iter_enumerated<'a>(
         &'a self

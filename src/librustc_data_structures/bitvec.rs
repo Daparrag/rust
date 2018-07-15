@@ -293,15 +293,12 @@ impl<R: Idx, C: Idx> SparseBitMatrix<R, C> {
     ///
     /// Returns true if this changed the matrix, and false otherwise.
     pub fn add(&mut self, row: R, column: C) -> bool {
+        self.vector.resize_to_elem(row, || SparseBitSet::new());
         if let None = self.vector.get(row) {
             self.vector.push(SparseBitSet::new());
         }
 
-        if let Some(row) = self.vector.get_mut(row) {
-            row.insert(column)
-        } else {
-            false
-        }
+        self.vector[row].insert(column)
     }
 
     /// Do the bits from `row` contain `column`? Put another way, is
@@ -335,10 +332,8 @@ impl<R: Idx, C: Idx> SparseBitMatrix<R, C> {
 
     /// Merge a row, `from`, into the `into` row.
     pub fn merge_into(&mut self, into: R, from: &SparseBitSet<C>) -> bool {
-        match self.vector.get_mut(into) {
-            Some(row) => row.merge_into(from),
-            None => false,
-        }
+        self.vector.resize_to_elem(into, || SparseBitSet::new());
+        self.vector[into].insert_from(from)
     }
 
     /// True if `sub` is a subset of `sup`
@@ -471,8 +466,8 @@ impl<I: Idx> SparseBitSet<I> {
         }
     }
 
-    /// Merge two sparse bit sets.
-    pub fn merge_into(&mut self, from: &SparseBitSet<I>) -> bool {
+    /// Insert into bit set from another bit set.
+    pub fn insert_from(&mut self, from: &SparseBitSet<I>) -> bool {
         let mut changed = false;
         for read_chunk in from.chunks() {
             changed = changed | self.insert_chunk(read_chunk).any();

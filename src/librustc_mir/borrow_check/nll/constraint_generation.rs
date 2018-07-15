@@ -12,7 +12,7 @@ use borrow_check::borrow_set::BorrowSet;
 use borrow_check::location::LocationTable;
 use borrow_check::nll::ToRegionVid;
 use borrow_check::nll::facts::AllFacts;
-use borrow_check::nll::region_infer::{RegionElement, RegionInferenceContext};
+use borrow_check::nll::region_infer::RegionInferenceContext;
 use rustc::infer::InferCtxt;
 use rustc::mir::visit::TyContext;
 use rustc::mir::visit::Visitor;
@@ -21,7 +21,6 @@ use rustc::mir::{Local, Statement, Terminator};
 use rustc::ty::fold::TypeFoldable;
 use rustc::ty::subst::Substs;
 use rustc::ty::{self, CanonicalTy, ClosureSubsts, GeneratorSubsts};
-use std::iter;
 
 pub(super) fn generate_constraints<'cx, 'gcx, 'tcx>(
     infcx: &InferCtxt<'cx, 'gcx, 'tcx>,
@@ -38,8 +37,6 @@ pub(super) fn generate_constraints<'cx, 'gcx, 'tcx>(
         location_table,
         all_facts,
     };
-
-    cg.add_region_liveness_constraints_from_type_check();
 
     for (bb, data) in mir.basic_blocks().iter_enumerated() {
         cg.visit_basic_block_data(bb, data);
@@ -188,42 +185,6 @@ impl<'cg, 'cx, 'gcx, 'tcx> Visitor<'tcx> for ConstraintGeneration<'cg, 'cx, 'gcx
 }
 
 impl<'cx, 'cg, 'gcx, 'tcx> ConstraintGeneration<'cx, 'cg, 'gcx, 'tcx> {
-    /// The MIR type checker generates region liveness constraints
-    /// that we also have to respect.
-    fn add_region_liveness_constraints_from_type_check(&mut self) {
-        let ConstraintGeneration {
-            regioncx,
-            location_table,
-            all_facts,
-            ..
-        } = self;
-
-        debug!(
-            "add_region_liveness_constraints_from_type_check(liveness_constraints={} items)",
-            regioncx.number_of_liveness_constraints(),
-        );
-
-        if let Some(all_facts) = all_facts {
-            for (r, _) in regioncx.liveness_constraints() {
-                all_facts
-                    .region_live_at
-                    .extend(regioncx.elements_contained_in(r)
-                            .filter_map(|region_element| {
-                                if let RegionElement::Location(location) = region_element {
-                                    Some(location)
-                                } else {
-                                    None
-                                }
-                            })
-                            .flat_map(|location| {
-                                let p1 = location_table.start_index(location);
-                                let p2 = location_table.mid_index(location);
-                                iter::once((r, p1)).chain(iter::once((r, p2)))
-                            }));
-            }
-        }
-    }
-
     /// Some variable with type `live_ty` is "regular live" at
     /// `location` -- i.e., it may be used later. This means that all
     /// regions appearing in the type `live_ty` must be live at
