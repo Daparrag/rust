@@ -293,11 +293,14 @@ impl<R: Idx, C: Idx> SparseBitMatrix<R, C> {
     ///
     /// Returns true if this changed the matrix, and false otherwise.
     pub fn add(&mut self, row: R, column: C) -> bool {
-        self.vector.resize_to_elem(row, || SparseBitSet::new());
-        if let None = self.vector.get(row) {
-            self.vector.push(SparseBitSet::new());
-        }
-
+        debug!(
+            "add(row={:?}, column={:?}, current_len={})",
+            row,
+            column,
+            self.vector.len()
+        );
+        self.vector
+            .ensure_contains_elem(row, || SparseBitSet::new());
         self.vector[row].insert(column)
     }
 
@@ -321,7 +324,8 @@ impl<R: Idx, C: Idx> SparseBitMatrix<R, C> {
 
         if read != write {
             if self.vector.get(read).is_some() {
-                self.vector.resize_to_elem(write, || SparseBitSet::new());
+                self.vector
+                    .ensure_contains_elem(write, || SparseBitSet::new());
                 let (bit_set_read, bit_set_write) = self.vector.pick2_mut(read, write);
 
                 for read_chunk in bit_set_read.chunks() {
@@ -335,7 +339,8 @@ impl<R: Idx, C: Idx> SparseBitMatrix<R, C> {
 
     /// Merge a row, `from`, into the `into` row.
     pub fn merge_into(&mut self, into: R, from: &SparseBitSet<C>) -> bool {
-        self.vector.resize_to_elem(into, || SparseBitSet::new());
+        self.vector
+            .ensure_contains_elem(into, || SparseBitSet::new());
         self.vector[into].insert_from(from)
     }
 
