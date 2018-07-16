@@ -320,10 +320,13 @@ impl<R: Idx, C: Idx> SparseBitMatrix<R, C> {
         let mut changed = false;
 
         if read != write {
-            let (bit_set_read, bit_set_write) = self.vector.pick2_mut(read, write);
+            if self.vector.get(read).is_some() {
+                self.vector.resize_to_elem(write, || SparseBitSet::new());
+                let (bit_set_read, bit_set_write) = self.vector.pick2_mut(read, write);
 
-            for read_chunk in bit_set_read.chunks() {
-                changed = changed | bit_set_write.insert_chunk(read_chunk).any();
+                for read_chunk in bit_set_read.chunks() {
+                    changed = changed | bit_set_write.insert_chunk(read_chunk).any();
+                }
             }
         }
 
